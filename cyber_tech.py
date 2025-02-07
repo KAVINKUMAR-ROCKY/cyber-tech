@@ -3,8 +3,11 @@ import json
 import string
 import random
 import getpass
+import shutil
+import datetime
 from cryptography.fernet import Fernet
-from termcolor import colored  # Import termcolor for colored output
+from termcolor import colored
+import pyfiglet
 
 # Generate or load encryption key
 def load_key():
@@ -36,7 +39,7 @@ def load_passwords():
             encrypted_data = file.read()
         return json.loads(cipher.decrypt(encrypted_data).decode())
     except Exception:
-        print("Error: Could not decrypt passwords. The file might be corrupted.")
+        print(colored("❌ Error: Could not decrypt passwords. The file might be corrupted.", "red"))
         return {}
 
 # Function to check password strength
@@ -52,20 +55,20 @@ def check_password_strength(password):
     strength_score = sum(strength_criteria.values())
 
     if strength_score == 5:
-        return "🔒 Very Strong"
+        return colored("🔒 Very Strong", "green")
     elif strength_score == 4:
-        return "🛡️ Strong"
+        return colored("🛡️ Strong", "blue")
     elif strength_score == 3:
-        return "⚠️ Medium"
+        return colored("⚠️ Medium", "yellow")
     elif strength_score == 2:
-        return "❌ Weak"
+        return colored("❌ Weak", "red")
     else:
-        return "❗ Very Weak"
+        return colored("❗ Very Weak", "magenta")
 
 # Function to generate a strong password
 def generate_strong_password(length=12):
     if length < 8:
-        length = 8  # Enforce minimum security standards
+        length = 8
 
     password_chars = (
         random.choice(string.ascii_uppercase) +
@@ -76,7 +79,7 @@ def generate_strong_password(length=12):
 
     remaining_chars = ''.join(random.choice(string.ascii_letters + string.digits + string.punctuation) for _ in range(length - 4))
     password = list(password_chars + remaining_chars)
-    random.shuffle(password)  # Shuffle for better randomness
+    random.shuffle(password)
 
     return ''.join(password)
 
@@ -84,53 +87,70 @@ def generate_strong_password(length=12):
 def add_password():
     site = input("Enter website: ").strip()
     username = input("Enter username: ").strip()
-    
-    # Mask password input
     password = getpass.getpass("Enter password (or type 'gen' to generate a strong one): ").strip()
     
     if password.lower() == "gen":
         password = generate_strong_password()
-        print(f"Generated Strong Password: {password}")
+        print(colored(f"✅ Generated Strong Password: {password}", "cyan"))
 
-    # Check strength before saving
     strength = check_password_strength(password)
-    print(f"Password Strength: {strength}")
+    print(f"🔍 Password Strength: {strength}")
 
     passwords = load_passwords()
     passwords[site] = {"username": username, "password": password}
     save_passwords(passwords)
 
-    print("✅ Password saved successfully!")
+    print(colored("✅ Password saved successfully!", "green"))
 
 # Function to view stored passwords
 def view_passwords():
     passwords = load_passwords()
     if not passwords:
-        print("No passwords stored.")
+        print(colored("⚠️ No passwords stored.", "yellow"))
         return
 
-    print("\nStored Passwords:")
+    print(colored("\nStored Passwords:", "cyan"))
     for site, creds in passwords.items():
-        print(f"🌐 Website: {site} | 👤 Username: {creds['username']} | 🔑 Password: {creds['password']}")
+        print(colored(f"🌐 Website: {site} | 👤 Username: {creds['username']} | 🔑 Password: {creds['password']}", "blue"))
 
-# Function to print ShieldPass in multicolor
+# Function to print ShieldPass in ASCII Art with color and center it
 def print_shieldpass():
-    print(colored('S', 'red') + colored('h', 'yellow') + colored('i', 'green') +
-          colored('e', 'cyan') + colored('l', 'blue') + colored('d', 'magenta') +
-          colored('P', 'red') + colored('a', 'yellow') + colored('s', 'green') +
-          colored('s', 'cyan'))
+    ascii_art = pyfiglet.figlet_format("ShieldPass")
+    terminal_width = shutil.get_terminal_size((80, 20)).columns
+    colored_art = "\n".join(colored(line.center(terminal_width), "cyan") for line in ascii_art.split("\n"))
+    print(colored_art)
+
+# Function to display greeting based on time of day
+def print_greeting():
+    current_hour = datetime.datetime.now().hour
+    if current_hour < 12:
+        greeting = "🌅 Good Morning!"
+    elif 12 <= current_hour < 18:
+        greeting = "🌞 Good Afternoon!"
+    else:
+        greeting = "🌙 Good Evening!"
+
+    print(colored(f"\n{greeting} Welcome to ShieldPass! 🔐", "red"))
+
+# Function to display a welcome message
+def print_welcome_message():
+    welcome_message = pyfiglet.figlet_format("Welcome")
+    terminal_width = shutil.get_terminal_size((80, 20)).columns
+    colored_welcome = "\n".join(colored(line.center(terminal_width), "red") for line in welcome_message.split("\n"))
+    print(colored_welcome)
 
 # Main Menu
 def main():
+    print_welcome_message()
+    print_shieldpass()
+    print_greeting()
+    
     while True:
-        print("\n🔐 Welcome to ", end="")
-        print_shieldpass()  # Print ShieldPass in multicolor
-        print(" - Your Secure Password Manager")
-        print("1️⃣ Check Password Strength")
-        print("2️⃣ Generate Strong Password")
-        print("3️⃣ Add Password")
-        print("4️⃣ View Passwords")
-        print("5️⃣ Exit")
+        print(colored("1️⃣ Check Password Strength", "green"))
+        print(colored("2️⃣ Generate Strong Password", "blue"))
+        print(colored("3️⃣ Add Password", "yellow"))
+        print(colored("4️⃣ View Passwords", "magenta"))
+        print(colored("5️⃣ Exit", "red"))
 
         choice = input("Enter your choice: ").strip()
 
@@ -143,9 +163,9 @@ def main():
             try:
                 password_length = int(input("Enter desired password length (min 8): ").strip())
                 generated_password = generate_strong_password(password_length)
-                print(f"✅ Generated Strong Password: {generated_password}")
+                print(colored(f"✅ Generated Strong Password: {generated_password}", "cyan"))
             except ValueError:
-                print("❌ Please enter a valid number for password length.")
+                print(colored("❌ Please enter a valid number for password length.", "red"))
 
         elif choice == "3":
             add_password()
@@ -154,11 +174,11 @@ def main():
             view_passwords()
 
         elif choice == "5":
-            print("👋 Exiting ShieldPass. Stay secure!")
+            print(colored("👋 Exiting ShieldPass. Stay secure!", "green"))
             break
 
         else:
-            print("⚠️ Invalid choice! Please select a valid option.")
+            print(colored("⚠️ Invalid choice! Please select a valid option.", "red"))
 
 # Start the program
 if __name__ == "__main__":
