@@ -8,6 +8,8 @@ import datetime
 from cryptography.fernet import Fernet
 from termcolor import colored
 import pyfiglet
+import itertools
+from PyPDF2 import PdfReader
 
 # Generate or load encryption key
 def load_key():
@@ -20,6 +22,7 @@ def load_key():
         with open(key_path, "rb") as key_file:
             key = key_file.read()
     return key
+
 
 key = load_key()
 cipher = Fernet(key)
@@ -139,47 +142,128 @@ def print_welcome_message():
     colored_welcome = "\n".join(colored(line.center(terminal_width), "red") for line in welcome_message.split("\n"))
     print(colored_welcome)
 
-# Main Menu
-def main():
-    print_welcome_message()
-    print_shieldpass()
-    print_greeting()
-    
-    while True:
-        print(colored("1️⃣ Check Password Strength", "green"))
-        print(colored("2️⃣ Generate Strong Password", "blue"))
-        print(colored("3️⃣ Add Password", "yellow"))
-        print(colored("4️⃣ View Passwords", "magenta"))
-        print(colored("5️⃣ Exit", "red"))
+# PDF password cracking function
+def crack_pdf(pdf_path, character_set, length):
+    try:
+        # Ask if the user wants to use a dictionary file
+        use_dictionary = input("Use dictionary file? (yes/no): ").lower()
+        if use_dictionary == "yes":
+            dict_path = input("Enter dictionary file path: ")
+            try:
+                with open(dict_path, "r", encoding="utf-8", errors="ignore") as file:
+                    for line in file:
+                        password = line.strip()  # Get password from dictionary
+                        pdf_reader = PdfReader(pdf_path)
+                        if pdf_reader.decrypt(password):  # Try to decrypt with this password
+                            print(f"✅ PDF Password found: {password}")
+                            return password
+            except FileNotFoundError:
+                print("❌ Dictionary file not found. Switching to brute force mode.")
+            
+        # If dictionary was not used or failed, attempt brute force
+        print("Starting brute-force attack...")
+        pdf_reader = PdfReader(pdf_path)
+        for attempt in itertools.product(character_set, repeat=length):  # Brute-force attempt
+            password = ''.join(attempt)
+            if pdf_reader.decrypt(password):  # Try to decrypt with this brute-force password
+                print(f"✅ PDF Password found: {password}")
+                return password
+    except FileNotFoundError:
+        print("❌ PDF file not found.")
+    print("❌ Failed to crack PDF password.")
+    return None
 
-        choice = input("Enter your choice: ").strip()
+# Main menu
+def main_menu():
+    while True:
+        print("\nChoose an option:")
+        print(colored("1️⃣ Access PDFGuard PDF Password Cracker 🔓", "green"))
+        print(colored("2️⃣ Password Management ShieldPass 🛡️", "green"))
+        print(colored("3️⃣ Exit", "red"))
+        
+        choice = input("Enter your choice (1-3): ").strip()
 
         if choice == "1":
-            password = input("Enter a password to check its strength: ").strip()
-            strength = check_password_strength(password)
-            print(f"🔍 Password Strength: {strength}")
-
+            pdf_guard()
         elif choice == "2":
-            try:
-                password_length = int(input("Enter desired password length (min 8): ").strip())
-                generated_password = generate_strong_password(password_length)
-                print(colored(f"✅ Generated Strong Password: {generated_password}", "cyan"))
-            except ValueError:
-                print(colored("❌ Please enter a valid number for password length.", "red"))
-
+            password_management()
         elif choice == "3":
-            add_password()
-
-        elif choice == "4":
-            view_passwords()
-
-        elif choice == "5":
-            print(colored("👋 Exiting ShieldPass. Stay secure!", "green"))
+            print(colored("👋 Exiting ShieldPass. Stay secure!", "red"))
             break
-
         else:
             print(colored("⚠️ Invalid choice! Please select a valid option.", "red"))
 
-# Start the program
+# PDFGuard - PDF Password Cracker
+def pdf_guard():
+    print("\n📄 PDFGuard - PDF Password Cracker")
+    print(colored("1️⃣ Crack PDF Password", "green"))
+    print(colored("2️⃣ Return to Main Menu", "red"))
+    print(colored("3️⃣ Exit PDFGuard", "red"))
+
+    choice = input("Enter your choice (1-3): ").strip()
+
+    if choice == "1":
+        print("\n####### PDFGuard #######")
+        print("Welcome to 'PDFGuard' - The Ultimate PDF Password Cracker! 🔓")
+        char_choice = input("Choose character set (1: Letters, 2: Digits, 3: Letters+Digits, 4: All): ")
+        length = int(input("Enter password length: "))
+        pdf_path = input("Enter PDF file path: ")
+
+        character_sets = {
+            "1": string.ascii_letters,
+            "2": string.digits,
+            "3": string.ascii_letters + string.digits,
+            "4": string.ascii_letters + string.digits + string.punctuation
+        }
+
+        character_set = character_sets.get(char_choice, string.ascii_letters + string.digits)
+        crack_pdf(pdf_path, character_set, length)
+
+    elif choice == "2":
+        print(colored("🔙 Returning to Main Menu...", "red"))
+        return
+    elif choice == "3":
+        print(colored("👋 Exiting PDFGuard.", "red"))
+        return
+    else:
+        print(colored("⚠️ Invalid choice! Please select a valid option.", "red"))
+
+# Password Management (ShieldPass)
+def password_management():
+    print("\n🔐 ShieldPass - Your Secure Password Manager 🛡️")
+    print("_____ Password Management _____")
+    print(colored("1️⃣ Check Password Strength", "green"))
+    print(colored("2️⃣ Generate Strong Password", "green"))
+    print(colored("3️⃣ Add Password", "green"))
+    print(colored("4️⃣ View Passwords", "green"))
+    print(colored("5️⃣ Return to Main Menu", "red"))
+
+    choice = input("Enter your choice: ").strip()
+
+    if choice == "1":
+        password = input("Enter a password to check its strength: ").strip()
+        strength = check_password_strength(password)
+        print(f"🔍 Password Strength: {strength}")
+
+    elif choice == "2":
+        try:
+            password_length = int(input("Enter desired password length (min 8): ").strip())
+            generated_password = generate_strong_password(password_length)
+            print(colored(f"✅ Generated Strong Password: {generated_password}", "cyan"))
+        except ValueError:
+            print(colored("❌ Please enter a valid number for password length.", "red"))
+
+    elif choice == "3":
+        add_password()
+
+    elif choice == "4":
+        view_passwords()
+
+    elif choice == "5":
+        print(colored("🔙 Returning to Main Menu...", "red"))
+        return
+    else:
+        print(colored("⚠️ Invalid choice! Please select a valid option.", "red"))
+
 if __name__ == "__main__":
-    main()
+    main_menu()
