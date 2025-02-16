@@ -1,93 +1,106 @@
+from kivy.lang import Builder
+from kivymd.app import MDApp
+from kivymd.uix.screen import MDScreen
+from kivymd.uix.label import MDLabel
+from kivymd.uix.button import MDRaisedButton
 import time
 import datetime
 from plyer import brightness
-from jnius import autoclass
-from android.permissions import request_permissions, Permission
 from threading import Thread
-from android.app import Service
-from android.content import Intent
-from android.os import Handler, Looper
 
-# Request necessary permissions
-request_permissions([Permission.WRITE_SETTINGS])
+# Kivy UI with Custom Theme
+KV = """
+MDScreen:
+    md_bg_color: app.theme_cls.primary_dark  # Background color (Dark Mode)
+    
+    MDLabel:
+        id: brightness_label
+        text: "Brightness Level: 100%"
+        halign: "center"
+        font_style: "H6"
+        theme_text_color: "Custom"
+        text_color: app.theme_cls.primary_color
+        pos_hint: {"center_y": 0.7}
 
-# Set up necessary Java classes
-Context = autoclass('android.content.Context')
-Activity = autoclass('org.kivy.android.PythonActivity')
-NotificationManager = autoclass('android.app.NotificationManager')
-Notification = autoclass('android.app.Notification')
-NotificationChannel = autoclass('android.app.NotificationChannel')
-NotificationCompat = autoclass('android.support.v4.app.NotificationCompat')
+    MDRaisedButton:
+        text: "Start Auto Brightness"
+        md_bg_color: app.theme_cls.accent_color  # Muted Teal Blue
+        pos_hint: {"center_x": 0.5, "center_y": 0.5}
+        on_release: app.start_service()
 
-# Define a foreground service for background execution
+    MDRaisedButton:
+        text: "Stop Auto Brightness"
+        md_bg_color: app.theme_cls.error_color  # Warm Peach
+        pos_hint: {"center_x": 0.5, "center_y": 0.4}
+        on_release: app.stop_service()
+"""
+
+# Background Service for Auto Brightness Control
 class BrightnessService(Thread):
-    def __init__(self):
+    def __init__(self, update_ui_callback):
         super().__init__()
         self.running = True
+        self.start_time = time.time()
+        self.update_ui_callback = update_ui_callback
 
     def run(self):
-        start_time = time.time()
-
-        # Set up the foreground service
-        self.set_foreground_service()
-
         while self.running:
-            adjust_brightness(start_time)
+            brightness_level = self.adjust_brightness()
+            self.update_ui_callback(f"Brightness Level: {int(brightness_level * 100)}%")
             time.sleep(60)  # Check brightness every 60 seconds
 
     def stop(self):
         self.running = False
 
-    def set_foreground_service(self):
-        # Set up a foreground notification
-        channel_id = "brightness_service_channel"
-        notification_manager = Activity.mActivity.getSystemService(Context.NOTIFICATION_SERVICE)
-        
-        # Create notification channel (required for Android Oreo and above)
-        if android.os.Build.VERSION.SDK_INT >= 26:
-            channel = NotificationChannel(channel_id, "Brightness Control", NotificationManager.IMPORTANCE_DEFAULT)
-            notification_manager.createNotificationChannel(channel)
+    def adjust_brightness(self):
+        current_hour = datetime.datetime.now().hour
+        screen_time = (time.time() - self.start_time) / 3600  # Convert seconds to hours
 
-        notification = NotificationCompat.Builder(Activity.mActivity, channel_id) \
-            .setContentTitle("Brightness Control Running") \
-            .setContentText("The service is adjusting the screen brightness.") \
-            .setSmallIcon(Activity.mActivity.getApplicationInfo().icon) \
-            .build()
+        # Default brightness levels
+        if 20 <= current_hour or current_hour < 6:
+            brightness_level = 0.5  # Night (50%)
+        elif 6 <= current_hour < 12:
+            brightness_level = 0.8  # Morning (80%)
+        else:
+            brightness_level = 1.0  # Daytime (100%)
 
-        # Start the service in the foreground with the notification
-        self.start_foreground_service(notification)
+        # Reduce brightness based on screen time
+        if screen_time > 1:
+            brightness_level = max(brightness_level - 0.3, 0.4)
+        if screen_time > 2:
+            brightness_level = max(brightness_level - 0.5, 0.3)
 
-    def start_foreground_service(self, notification):
-        service = Activity.mActivity.getSystemService(Context.NOTIFICATION_SERVICE)
-        service.notify(1, notification)
+        # Apply brightness level
+        brightness.set_brightness(int(brightness_level * 255))
+        return brightness_level
 
-# Function to calculate runtime
-def get_runtime(start_time):
-    return time.time() - start_time
+# Main App with Custom Theme
+class BrightnessApp(MDApp):
+    def build(self):
+        # Set Theme Colors
+        self.theme_cls.primary_palette = "Teal"  # Muted Teal Blue (#80CED7)
+        self.theme_cls.primary_hue = "400"
+        self.theme_cls.accent_palette = "LightBlue"  # Pastel Blue (#A8DADC)
+        self.theme_cls.accent_hue = "A100"
+        self.theme_cls.error_palette = "DeepOrange"  # Warm Peach (#FFA07A)
+        self.theme_cls.error_hue = "500"
+        self.theme_cls.primary_light = (208/255, 230/255, 165/255, 1)  # Soft Sage Green (#D0E6A5)
+        self.theme_cls.primary_dark = (30/255, 30/255, 30/255, 1)  # Deep Charcoal Grey (#2E2E2E)
+        self.screen = Builder.load_string(KV)
+        return self.screen
 
-# Function to adjust brightness dynamically
-def adjust_brightness(start_time):
-    current_hour = datetime.datetime.now().hour
-    screen_time = get_runtime(start_time) / 3600  # Convert seconds to hours
+    def start_service(self):
+        self.service = BrightnessService(self.update_label)
+        self.service.start()
 
-    if 20 <= current_hour or current_hour < 6:  # Night time (8 PM - 6 AM)
-        brightness_level = 0.5  # 50%
-    elif 6 <= current_hour < 12:  # Morning (6 AM - 12 PM)
-        brightness_level = 0.8  # 80%
-    else:  # Daytime (12 PM - 8 PM)
-        brightness_level = 1.0  # 100%
+    def stop_service(self):
+        if hasattr(self, 'service'):
+            self.service.stop()
     
-    # Reduce brightness based on screen time usage
-    if screen_time > 1:  # After 1 hour
-        brightness_level = max(brightness_level - 0.3, 0.4)  # Reduce but keep min 40%
-    if screen_time > 2:  # After 2 hours
-        brightness_level = max(brightness_level - 0.5, 0.3)  # Reduce but keep min 30%
-    
-    # Set screen brightness on Android
-    brightness.set_brightness(int(brightness_level * 255))
-    print(f"Brightness set to {int(brightness_level * 100)}% at {datetime.datetime.now().strftime('%H:%M')} | Screen time: {screen_time:.2f} hours")
+    def update_label(self, text):
+        self.screen.ids.brightness_label.text = text
 
-# Start the background service
+# Run the app
 if __name__ == "__main__":
-    service = BrightnessService()
-    service.start()
+    BrightnessApp().run()
+
